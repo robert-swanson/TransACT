@@ -1,12 +1,13 @@
-library(readr)      # Read files
-library(tidyverse)  # All the tidy things
-library(dplyr)      # Data Cleaning
-library(dequer)     # Stacks
+suppressMessages(library(readr))      # Read files
+suppressMessages(library(tidyverse))  # All the tidy things
+suppressMessages(library(dplyr))      # Data Cleaning
+suppressMessages(library(dequer))     # Stacks
 
-projectDir <- "~/dev/FinanceWrangle"
+projectDir <- "~/dev/TransACT"
 dateFormat <- "%m/%d/%Y"
 lsSize <- 5
 LSSize <- 20
+options(width=120)
 
 getDate <- function(prompt) {
   while (TRUE) {
