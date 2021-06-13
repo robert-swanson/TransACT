@@ -5,9 +5,9 @@ suppressMessages(library(dequer))     # Stacks
 
 projectDir <- "~/dev/TransACT"
 dateFormat <- "%m/%d/%Y"
-lsSize <- 5
-LSSize <- 20
-options(width=120)
+lsSize <- 20
+LSSize <- 40
+options(width=200)
 
 getDate <- function(prompt) {
   while (TRUE) {
@@ -67,6 +67,12 @@ extractApple <- function(apple) {
   return(out)
 }
 
+exportTrans <- function(trans) {
+  trans$Earned <- str_replace_all(as.character(trans$Earned), "^0$", "")
+  trans$Paid <- str_replace_all(as.character(trans$Paid), "^0$", "")
+  write.csv(trans, sprintf("%s/out.csv",projectDir), row.names=FALSE)
+}
+
 safeGetFileName <- function(prompt, acceptBlank=FALSE) {
   while(TRUE) {
     filename <- readline(prompt)
@@ -84,8 +90,7 @@ knownCategories <- read.csv(sprintf("%s/tables/categories-categories.csv", proje
 knownAccounts <- read.csv(sprintf("%s/tables/accounts-accounts.csv", projectDir))
 
 loadNewTransactions <- function() {
-  # startDate <- getDate("Earliest Include Date: ")
-  startDate <- as.Date("5/19/2021", dateFormat)
+  startDate <- getDate("Earliest Include Date: ")
   
   mint <- read.csv(safeGetFileName("Mint CSV: ")) %>% filter(as.Date(Date, dateFormat) >= startDate)
   combined <- extractMint(mint)
@@ -105,19 +110,22 @@ loadNewTransactions <- function() {
 saved <- sprintf("%s/out.csv", projectDir)
 if(file.exists(saved) && readline(sprintf("Load Saved (%s) [y]/n: ", saved)) != "n") {
   transactions <<- read.csv(saved)
+  transactions$Paid[is.na(transactions$Paid)] = 0
+  transactions$Earned[is.na(transactions$Earned)] = 0
 } else {
   transactions <<- loadNewTransactions()
 }
 
 undoStack <- stack()
 push(undoStack, transactions)
-write.csv(transactions, sprintf("%s/out.csv",projectDir), row.names=FALSE)
+exportTrans(transactions)
 
 printContext <- function(i, length, vals, padding=TRUE) {
   if (padding) {
     cat("\n\n\n\n")
   }
   vals["Net"] = vals["Earned"]-vals["Paid"]
+  vals["Description"] <- substr(vals$"Description", 0, 20)
   print(vals[i:(i+length-1),])
 }
 
@@ -246,8 +254,9 @@ executeCMD  <- function(cmd, trans) {
   else if (cmd == "undo" || cmd == "u") {
     if (length(undoStack) > 1) {
       trans <- pop(undoStack)
+      message("Undone")
     } else {
-      print("Nothing to undo")
+      message("Nothing to undo")
     }
   }
   else if (cmd == "merge" || cmd == "m") {
@@ -257,14 +266,21 @@ executeCMD  <- function(cmd, trans) {
     } else {
       message("Invalid transaction #")
     }
-  } else if (!is.na(str_match(cmd, "del(?:ete)?(?: (\\d+))?")[1])) {
+  } else if (cmd == "mergenext" || cmd == "mn") {
+    if (i < dim(trans)[1]-1) {
+      trans <- doMerge(trans, firstI=i, secondI = i+1)
+    } else {
+      message("There is no next transaction to merge with")
+    }
+  }
+  
+  else if (!is.na(str_match(cmd, "del(?:ete)?(?: (\\d+))?")[1])) {
     delIndex <- as.integer(str_match(cmd, "del(?:ete)? (\\d+)")[2])
     if (is.na(delIndex)) { delIndex <- i}
     printContext(delIndex, 1, trans, padding = FALSE)
     net <- as.double(trans[delIndex,"Earned"]-trans[delIndex,"Paid"])
     prompt <- sprintf("Confirm delete transaction #%d with net value %0.2f y/[n]: ",as.double(delIndex), net)
-    if("y" == readline(prompt)) {
-      print(deleteRow)
+    if(delIndex == i || "y" == readline(prompt)) {
       trans <- deleteRow(trans, delIndex)
       message("Deleted")
     }
@@ -284,9 +300,10 @@ executeCMD  <- function(cmd, trans) {
 }
 
 
+
 visitTransaction <- function() {
   vt <- transactions
-  printContext(i, 5, vt)
+  printContext(i, lsSize, vt)
   while (TRUE) {
     prompt <- sprintf("[%d]: ", i)
     cmd <- readline(prompt)
@@ -307,15 +324,16 @@ visitTransaction <- function() {
       if (dim(new) != dim(vt) || sum(new != vt) >= 1) { # value changed
         push(undoStack, new)
         vt <- new
-        write.csv(vt, sprintf("%s/out.csv",projectDir), row.names=FALSE)
         printContext(i, 1, vt, padding = FALSE)
+        exportTrans(vt)
       } 
     }
   }
 }
 
 i <<- 1
-while (i < dim(transactions)[1]) {
+while (i <= dim(transactions)[1]) {
+  cat("\014")
   transactions <<- visitTransaction()
   i <<- i+1
 }
