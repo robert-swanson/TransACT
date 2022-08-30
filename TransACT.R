@@ -3,7 +3,8 @@ suppressMessages(library(tidyverse))  # All the tidy things
 suppressMessages(library(dplyr))      # Data Cleaning
 suppressMessages(library(dequer))     # Stacks
 
-projectDir <- "~/dev/TransACT"
+projectDir <- "/Users/robertswanson/Documents/Financial Tools/personal-finances/TransACT"
+	       
 dateFormat <- "%m/%d/%Y"
 lsSize <- 20
 LSSize <- 40
@@ -35,15 +36,15 @@ getAccounts <- function(accounts) {
 extractMint <- function(mint) {
   earned <- ifelse(mint$Transaction.Type == 'credit', mint$Amount, "")
   paid <- ifelse(mint$Transaction.Type == 'debit', mint$Amount, "")
-  
+
   #Categories
   categories <- getCategories(mint$Category)
-  
+
   # Accounts
   accounts <- getAccounts(mint$Account.Name)
   destination <- ifelse(mint$Transaction.Type == 'credit', accounts, "")
   source <- ifelse(mint$Transaction.Type == 'debit', accounts, "")
-  
+
   out <- mint %>% transmute(Description=Description, Date=as.Date(Date, dateFormat), Earned=as.double(earned), Paid=as.double(paid), Category=categories, Destination=destination, Source=source)
   out$Paid[is.na(out$Paid)] = 0
   out$Earned[is.na(out$Earned)] = 0
@@ -53,14 +54,14 @@ extractMint <- function(mint) {
 extractApple <- function(apple) {
   earned = ifelse(apple$Amount..USD. < 0, -1*apple$Amount..USD., "")
   paid = ifelse(apple$Amount..USD. > 0, apple$Amount..USD., "")
-  
+
   #Categories
   categories <- getCategories(apple$Category)
-  
+
   # Accounts
   destination <- ifelse(apple$Amount..USD. < 0, "Apple Card", "")
   source <- ifelse(apple$Amount..USD. > 0, "Apple Card", "")
-  
+
   out <- apple %>% transmute(Description=Description, Date=as.Date(Transaction.Date, dateFormat), Earned=as.double(earned), Paid=as.double(paid), Category, Destination=destination, Source=source)
   out$Paid[is.na(out$Paid)] = 0
   out$Earned[is.na(out$Earned)] = 0
@@ -91,10 +92,10 @@ knownAccounts <- read.csv(sprintf("%s/tables/accounts-accounts.csv", projectDir)
 
 loadNewTransactions <- function() {
   startDate <- getDate("Earliest Include Date: ")
-  
+
   mint <- read.csv(safeGetFileName("Mint CSV: ")) %>% filter(as.Date(Date, dateFormat) >= startDate)
   combined <- extractMint(mint)
-  
+
   while (TRUE) {
     file <- safeGetFileName("Apple CSV [enter when done]: ", acceptBlank = TRUE)
     if (file == "") {
@@ -105,7 +106,7 @@ loadNewTransactions <- function() {
       combined <- combined %>% rbind(appleOut)
     }
   }
-  
+
 }
 saved <- sprintf("%s/out.csv", projectDir)
 if(file.exists(saved) && readline(sprintf("Load Saved (%s) [y]/n: ", saved)) != "n") {
@@ -155,7 +156,7 @@ doMerge <- function(trans, firstI, secondI) {
   destB <- second$Destination
   srcA <- first$Source
   srcB <- second$Source
-  
+
   if (destA != "" && destB != "" && srcA != "" && srcB != "") {
     if (destA == srcB && destB != srcA && first$Earned == second$Paid) {
       message(sprintf("Squashing %s account", destA))
@@ -209,7 +210,7 @@ executeCMD  <- function(cmd, trans) {
   else if (cmd == "lsaccount") {
     print(knownAccounts$Account)
   }
-  else if (cmd == "description" || cmd == "d") { 
+  else if (cmd == "description" || cmd == "d") {
     trans[i, "Description"] <- readline(sprintf("[%d] Description: \"%s\" --> ", i, trans[i, "Description"]))
   }
   else if (cmd == "date") {
@@ -273,7 +274,7 @@ executeCMD  <- function(cmd, trans) {
       message("There is no next transaction to merge with")
     }
   }
-  
+
   else if (!is.na(str_match(cmd, "del(?:ete)?(?: (\\d+))?")[1])) {
     delIndex <- as.integer(str_match(cmd, "del(?:ete)? (\\d+)")[2])
     if (is.na(delIndex)) { delIndex <- i}
@@ -284,7 +285,7 @@ executeCMD  <- function(cmd, trans) {
       trans <- deleteRow(trans, delIndex)
       message("Deleted")
     }
-  } 
+  }
   else if (!is.na(str_match(cmd, "j(?:ump)? (\\d+)")[1])) {
     jumpindex <- as.integer(str_match(cmd, "j(?:ump)? (\\d+)")[2])
     if (is.integer(jumpindex) && jumpindex <= dim(trans)[1]) {
@@ -326,7 +327,7 @@ visitTransaction <- function() {
         vt <- new
         printContext(i, 1, vt, padding = FALSE)
         exportTrans(vt)
-      } 
+      }
     }
   }
 }
@@ -337,9 +338,3 @@ while (i <= dim(transactions)[1]) {
   transactions <<- visitTransaction()
   i <<- i+1
 }
-
-
-
-
-
-
